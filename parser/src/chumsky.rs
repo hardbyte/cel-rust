@@ -80,10 +80,16 @@ fn numbers<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, cha
         .then(exp.or_not())
         .map_slice(|s: &str| Expression::Atom(Atom::Float(s.parse().unwrap())))
         .boxed();
+    let unsigned_integer = text::int(10)
+        .then_ignore(just("u"))
+        .map(|s: &str | {
+            Expression::Atom(Atom::UInt(1))
+        });
     let integer = text::int(10)
         .slice()
-        .map(|s: &str| Expression::Atom(Atom::Int(s.parse().unwrap())));
-    choice((floating, integer)).padded()
+        .map(|s: &str| Expression::Atom(Atom::UInt(s.parse().unwrap())));
+
+    choice((unsigned_integer, floating, integer)).padded()
 }
 
 /// Parses boolean values and returns them as [`Expression::Atom(Atom::Bool(...))`] types.
@@ -96,6 +102,7 @@ fn booleans<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, ch
 /// Parses identifiers and returns them as [`Expression::Ident(...)`] types.
 fn identifiers<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char>>> {
     text::ident()
+        .padded()
         .slice()
         .map(|s: &str| Expression::Ident(s.to_string().into()))
 }
@@ -104,7 +111,7 @@ fn nulls<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char>
     just("null").to(Expression::Atom(Atom::Null))
 }
 
-fn parser<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char>>> {
+pub(crate) fn parser<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char>>> {
     let identifiers = identifiers().boxed();
     let strings = strings().boxed();
     let numbers = numbers().boxed();
@@ -142,7 +149,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char
 
         // Combine and parse member operations
         // todo: this needs to be expr... rather than identifiers but blocks forever
-        let member = expr
+        let member = identifiers
             .clone()
             .then(function)
             .map(|(e, m)| Expression::Member(e.into(), m.into()));
@@ -213,9 +220,10 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Expression, extra::Err<Rich<'a, char
         //             .collect::<Vec<_>>()
         //     })
         //     .map(Expression::Map);
-
-        member.padded().then_ignore(end())
+        compare
+        //member.padded()
     })
+        .then_ignore(end())
 }
 
 #[test]
@@ -304,6 +312,7 @@ fn test() {
     test_expr("foo", Some(Expression::Ident("foo".to_string().into())));
     test_expr("10.5", Some(Expression::Atom(Atom::Float(10.5))));
     test_expr("10", Some(Expression::Atom(Atom::Int(10))));
+    test_expr("10u", Some(Expression::Atom(Atom::UInt(10))));
     test_expr(
         "'foobar'",
         Some(Expression::Atom(Atom::String("foobar".to_string().into()))),

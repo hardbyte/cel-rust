@@ -1,7 +1,7 @@
 use crate::context::Context;
 use crate::objects::CelType;
 use cel_parser::ast::Expression;
-use cel_parser::parser::ExpressionParser;
+use cel_parser::{parse};
 use std::convert::TryFrom;
 use thiserror::Error;
 
@@ -22,7 +22,7 @@ pub struct Program {
 
 impl Program {
     pub fn compile(source: &str) -> Result<Program, ParseError> {
-        match ExpressionParser::new().parse(source) {
+        match parse(source) {
             Ok(expression) => Ok(Program { expression }),
             // To-Do: Better error handling
             Err(e) => Err(ParseError {
